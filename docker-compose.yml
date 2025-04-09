@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # Mount the SQL scripts so that they are executed on first initialization:
+      - ./database:/docker-entrypoint-initdb.d
+      # Mount the populate folder so SQL scripts can reference the CSV files:
+      - ./populate:/docker-entrypoint-initdb.d/populate
+    ports:
+      - "5432:5432"
+
+volumes:
+  db_data:
