@@ -6,6 +6,7 @@ CREATE TABLE Users (
     id SERIAL PRIMARY KEY,
     Name VARCHAR(100),
     Age INT,
+    Sex VARCHAR,
     Weight FLOAT,
     Height FLOAT,
     Desired_Intake FLOAT
@@ -69,30 +70,32 @@ VALUES ('Protein'),
 
 
 
+INSERT INTO Users (Name, Age, Sex, Weight, Height, Desired_Intake)
+VALUES ('Frank', '22', 'Male', 65, 175, 2000);
 
 
 
 
 
 INSERT INTO Recommendation (element_id, recommended_quantity, for_weight)
-VALUES (1,0.84,"per kilo");
+VALUES (1,0.84,'per kilo');
 
 INSERT INTO Recommendation (element_id, recommended_quantity, age_range)
-VALUES (2,25,"10+");
+VALUES (2,25,'10+');
 INSERT INTO Recommendation (element_id, recommended_quantity, age_range)
-VALUES (2,21,"7-9");
+VALUES (2,21,'7-9');
 INSERT INTO Recommendation (element_id, recommended_quantity, age_range)
-VALUES (2,15,"6-");
+VALUES (2,15,'6-');
 
 INSERT INTO Recommendation (element_id, recommended_quantity)
 VALUES (4,2);
 
 INSERT INTO Recommendation (element_id, recommended_quantity, for_calories)
-VALUES (5,0.30,"% of calories");
+VALUES (5,0.30,'% of calories');
 
 
 INSERT INTO Recommendation (element_id, recommended_quantity, for_calories)
-VALUES (7,0.0.05,"% of calories");
+VALUES (7,0.05,'% of calories');
 
 
 DROP VIEW IF EXISTS ai_data.FoodLogView cascade;
