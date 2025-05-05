@@ -6,15 +6,32 @@ from psycopg2 import OperationalError
 import time
 import pandas as pd
 import re
+from math import sqrt
+
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 # CLASS SECTION
 
 # A list of food item in the meal
 class meal:
-  def __init__(self, id):
+  def __init__(self, id, item_list_columns):
     self.id = id
-    self.food_item_list = []
+    self.food_item_list = pd.DataFrame(columns=item_list_columns)
+
+  # Removes an item from the meal's item list
+  def remove_item(self,item_id):
+     self.food_item_list = self.food_item_list[self.food_item_list.food_id != item_id]
+
+  # Add an item to the meal's item list
+  def add_item(self,item):
+     self.food_item_list.loc[len(self.food_item_list)] = item
+
+  # Calculate a meal's total intake
+  def calculate_total_intake(self):
+     return self.food_item_list.iloc[:, 2:].sum()
+     
 
 # An item associated with a food together with all it's nutrient value in a dictionnary
 """
@@ -112,10 +129,16 @@ def get_user_info(user_id,cursor):
 
 # Treat the strings
 def requirement_treatment(quantity,treatment_string,user_data):
+  print(treatment_string)
+
   if treatment_string=="per kilo":
     quantity = quantity*user_data['Weight']
   if treatment_string=="% of calories":
     quantity = quantity*user_data['Desired_Intake']
+  if treatment_string=="% of calories, /9":
+    quantity = (quantity*user_data['Desired_Intake'])/9
+  if treatment_string=="% of calories, /4":
+    quantity = (quantity*user_data['Desired_Intake'])/4
 
   if re.match(r'^\d+-\d+$', treatment_string):  # Pattern like "10-20"
       start, end = map(int, treatment_string.split('-'))
@@ -154,6 +177,7 @@ def get_requirement_list_from_bdd(cursor):
 def create_requirements(cursor,user_data):
   requirement_list = get_requirement_list_from_bdd(cursor)
   requirements_dictionnary = {}
+  requirements_dictionnary["Calories"]=user_data["Desired_Intake"]
 
   for item in requirement_list:
      quantity = item[1]
@@ -174,8 +198,9 @@ def get_item_list_from_bdd(cursor, limit=1000):
         SELECT food.id,food.label,element.id, element.label, quantity
         FROM food 
         INNER JOIN possess ON food.id = possess.food_id
-        INNER JOIN element ON possess.element_id = element.id;
-  """)
+        INNER JOIN element ON possess.element_id = element.id
+        WHERE element.label!='Carbohydrate'; 
+  """) #To change for Carbohydrate
   results = cursor.fetchall()
 
 
@@ -202,45 +227,101 @@ def get_item_list_from_bdd(cursor, limit=1000):
 
 
 
-# MEAL CLASS RELATED FUNCTION SECTION
-
-# Create a meal object
-def create_meal()
-
-# Removes an item from the meal's item list
-def remove_item_from_meal(meal,item_id)
-
-# Add an item to the meal's item list
-def add_item_to_meal(meal,item)
-
-# Calculate a meal's total intake
-def calculate_total_intake(meal):
 
 
-"""
 
 
 # AI FUNCTION SECTION
 
+def calculate_cosine_similarity(list1,list2):
+
+  product = 0
+  for i in range(len(list1)):
+     product = product + (list1[i]*list2[i])
+  
+  tot1=0
+  tot2=0
+
+  for y in range(len(list2)):
+     
+     tot1 = tot1 + list2[y]**2 
+     tot2 = tot2 + list1[y]**2
+    
+
+  return product/(sqrt(tot1)*sqrt(tot2))
+
 # Gives a score of how much the item goes towards getting close to the wanted amount
-def coef_calculation(current_amount,item_amount,required_amount)
+def coef_calculation(current_amount,item_amount,required_amount):
+
+  combine_amount = [x + y for x, y in zip(current_amount, item_amount)]
+
+  print("combine_amount", combine_amount)
+  print("item_amount", item_amount)
+  print("current_amount", current_amount)
+  print("required_amount", required_amount)
+
+  first_coefficiant = calculate_cosine_similarity(combine_amount,required_amount)
+  second_coefficient = calculate_cosine_similarity(current_amount,required_amount)
+
+
+  #print(first_coefficiant,second_coefficient)
+
+  return first_coefficiant - second_coefficient
+
 
 # Analyses an item's nutritional value using AI compared to the meal and other items, returns a score
-def analyse_items(total_current_intake,item_list,user,requirements)
+def analyse_item(item,meal,requirements):
+    
+    
+    item_values = item.drop(['food_id', 'food_item'])
+    meal_values = meal.calculate_total_intake()
+
+    sorted_keys = sorted(requirements.element_dictionnary.keys())
+
+
+    item_values = item_values[sorted_keys].values.tolist()
+    meal_values = meal_values[sorted_keys].values.tolist()
+
+
+    requirement_values = [requirements.element_dictionnary[key] for key in sorted_keys]
+
+
+    coef = coef_calculation(meal_values, item_values, requirement_values)
+
+    if coef<0:
+       return "Negative score"
+    else :
+       return coef*100
+
 
 # Main AI Function
-def analyse_items(meal,item,item_list,user,requirements)
+def analyse_items(meal,item_list,requirements):
+  item_list_complete = item_list.copy()
+  item_list_complete["results"] = "None"
+
+
+  for i in range(len(item_list)):
+     print(item_list_complete.loc[i, "food_item"])
+     result = analyse_item(item_list.loc[i],meal,requirements)
+     item_list_complete.loc[i, "results"] = result
+  return (item_list_complete)
 
 
 
+def main():
+  connection = create_bdd_connexion()
+  cursor = create_bdd_cursor(connection)
+  user_data = get_user_info("1", cursor)
 
-"""
+  requirement = create_requirements(cursor,user_data)
+  item_list = get_item_list_from_bdd(cursor)
+  print(item_list)
+  new_meal = meal(1, item_list.columns)
+  new_meal.add_item(item_list.loc[25])
+  final_list = analyse_items(new_meal,item_list,requirement)
+  final_list["results"] = pd.to_numeric(final_list["results"], errors="coerce")
 
+  print(final_list.sort_values(by="results"))
 
-    
-connection = create_bdd_connexion()
-cursor = create_bdd_cursor(connection)
-user_data = get_user_info("1", cursor)
-
-requirement = create_requirements(cursor,user_data)
-print(get_item_list_from_bdd(cursor))
+  print(requirement.element_dictionnary)
+main()

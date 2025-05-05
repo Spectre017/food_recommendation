@@ -88,14 +88,14 @@ INSERT INTO Recommendation (element_id, recommended_quantity, age_range)
 VALUES (2,15,'6-');
 
 INSERT INTO Recommendation (element_id, recommended_quantity)
-VALUES (4,2);
+VALUES (4,2000);
 
 INSERT INTO Recommendation (element_id, recommended_quantity, for_calories)
-VALUES (5,0.30,'% of calories');
+VALUES (5,0.30,'% of calories, /9');
 
 
 INSERT INTO Recommendation (element_id, recommended_quantity, for_calories)
-VALUES (7,0.05,'% of calories');
+VALUES (7,0.05,'% of calories, /4');
 
 
 DROP VIEW IF EXISTS ai_data.FoodLogView cascade;
@@ -126,7 +126,6 @@ DECLARE
     element_map JSON := json_build_object(
         'Calories', NEW.Calories,
         'Protein', NEW.Protein,
-        'Carbohydrate', NEW.Carbohydrates,
         'Fat', NEW.Fat,
         'Fiber', NEW.Fiber,
         'Sugars', NEW.Sugars,
@@ -176,7 +175,7 @@ EXECUTE FUNCTION ai_data.insert_food_log();
 
 
 COPY ai_data.FoodLogView
-FROM '/docker-entrypoint-initdb.d/populate/daily_food_nutrition_dataset.csv'
+FROM '/docker-entrypoint-initdb.d/populate/FOOD-DATA-GROUP1.csv'
 WITH (
   FORMAT csv,
   HEADER true,
