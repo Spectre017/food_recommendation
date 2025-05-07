@@ -88,7 +88,7 @@ INSERT INTO Recommendation (element_id, recommended_quantity, age_range)
 VALUES (2,15,'6-');
 
 INSERT INTO Recommendation (element_id, recommended_quantity)
-VALUES (4,2000);
+VALUES (4,2);
 
 INSERT INTO Recommendation (element_id, recommended_quantity, for_calories)
 VALUES (5,0.30,'% of calories, /9');
@@ -98,86 +98,130 @@ INSERT INTO Recommendation (element_id, recommended_quantity, for_calories)
 VALUES (7,0.05,'% of calories, /4');
 
 
-DROP VIEW IF EXISTS ai_data.FoodLogView cascade;
-CREATE VIEW ai_data.FoodLogView AS
-SELECT
-    NULL::DATE AS Date,
-    NULL::INT AS User_ID,
-    NULL::VARCHAR AS Food_Item,
-    NULL::VARCHAR AS Category,
-    NULL::FLOAT AS Calories,
-    NULL::FLOAT AS Protein,
-    NULL::FLOAT AS Carbohydrates,
-    NULL::FLOAT AS Fat,
-    NULL::FLOAT AS Fiber,
-    NULL::FLOAT AS Sugars,
-    NULL::FLOAT AS Sodium,
-    NULL::FLOAT AS Cholesterol,
-    NULL::VARCHAR AS Meal_Type,
-    NULL::FLOAT AS Water_Intake
-WHERE FALSE;
-CREATE OR REPLACE FUNCTION ai_data.insert_food_log()
-RETURNS TRIGGER AS $$
-DECLARE
-    v_food_id INT;
-    v_element_id INT;
-    v_element_label TEXT;
-    v_element_value FLOAT;
-    element_map JSON := json_build_object(
-        'Calories', NEW.Calories,
-        'Protein', NEW.Protein,
-        'Fat', NEW.Fat,
-        'Fiber', NEW.Fiber,
-        'Sugars', NEW.Sugars,
-        'Sodium', NEW.Sodium
-    );
-BEGIN
-    -- Get or insert food
-    SELECT id INTO v_food_id FROM ai_data.Food WHERE Label = NEW.Food_Item LIMIT 1;
 
-    IF v_food_id IS NULL THEN
-        INSERT INTO ai_data.Food (Label) VALUES (NEW.Food_Item);
-        SELECT id INTO v_food_id FROM ai_data.Food WHERE Label = NEW.Food_Item ORDER BY id DESC LIMIT 1;
-    END IF;
-
-    -- Loop through elements
-    FOR v_element_label, v_element_value IN
-        SELECT * FROM json_each_text(element_map)
-    LOOP
-        -- Get or insert element
-        SELECT id INTO v_element_id FROM ai_data.Element WHERE label = v_element_label LIMIT 1;
-
-        IF v_element_id IS NULL THEN
-            INSERT INTO ai_data.Element (label) VALUES (v_element_label);
-            SELECT id INTO v_element_id FROM ai_data.Element WHERE label = v_element_label ORDER BY id DESC LIMIT 1;
-        END IF;
-
-        -- Insert possess if not exists
-        IF NOT EXISTS (
-            SELECT 1 FROM ai_data.Possess p
-            WHERE p.food_id = v_food_id AND p.element_id = v_element_id
-        ) THEN
-            INSERT INTO ai_data.Possess (food_id, element_id, quantity)
-            VALUES (v_food_id, v_element_id, v_element_value::FLOAT);
-        END IF;
-    END LOOP;
-
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_insert_food_log
-INSTEAD OF INSERT ON ai_data.FoodLogView
-FOR EACH ROW
-EXECUTE FUNCTION ai_data.insert_food_log();
-
---ALTER TABLE ai_data.Food ADD CONSTRAINT unique_food_label UNIQUE (Label);
+DROP TABLE IF EXISTS ai_data.NutritionStaging;
+CREATE TABLE ai_data.NutritionStaging (
+    id SERIAL,  -- ← optional row ID
+    unnamed_0 INT,         -- ← CSV first column (probably an index)
+    food TEXT,
+    caloric_value FLOAT,
+    fat FLOAT,
+    saturated_fats FLOAT,
+    monounsaturated_fats FLOAT,
+    polyunsaturated_fats FLOAT,
+    carbohydrates FLOAT,
+    sugars FLOAT,
+    protein FLOAT,
+    dietary_fiber FLOAT,
+    cholesterol FLOAT,
+    sodium FLOAT,
+    water FLOAT,
+    vitamin_a FLOAT,
+    vitamin_b1 FLOAT,
+    vitamin_b11 FLOAT,
+    vitamin_b12 FLOAT,
+    vitamin_b2 FLOAT,
+    vitamin_b3 FLOAT,
+    vitamin_b5 FLOAT,
+    vitamin_b6 FLOAT,
+    vitamin_c FLOAT,
+    vitamin_d FLOAT,
+    vitamin_e FLOAT,
+    vitamin_k FLOAT,
+    calcium FLOAT,
+    copper FLOAT,
+    iron FLOAT,
+    magnesium FLOAT,
+    manganese FLOAT,
+    phosphorus FLOAT,
+    potassium FLOAT,
+    selenium FLOAT,
+    zinc FLOAT,
+    nutrition_density FLOAT
+);
 
 
-COPY ai_data.FoodLogView
+
+COPY ai_data.NutritionStaging
 FROM '/docker-entrypoint-initdb.d/populate/FOOD-DATA-GROUP1.csv'
 WITH (
   FORMAT csv,
-  HEADER true,
-  DELIMITER ','
+  HEADER true
 );
+
+DO $$
+DECLARE
+    v_food_id INT;
+    v_element_id INT;
+    rec RECORD;  -- ✅ This is the missing piece
+BEGIN
+    FOR rec IN
+        SELECT
+            ns.food,
+            ns.caloric_value AS "Calories",
+            ns.fat AS "Fat",
+            ns.carbohydrates AS "Carbohydrate",
+            ns.sugars AS "Sugars",
+            ns.protein AS "Protein",
+            ns.dietary_fiber AS "Fiber",
+            ns.sodium AS "Sodium"
+        FROM ai_data.NutritionStaging ns
+    LOOP
+        -- Insert food if not exists
+        SELECT id INTO v_food_id FROM ai_data.Food WHERE Label = rec.food;
+        IF v_food_id IS NULL THEN
+            INSERT INTO ai_data.Food (Label) VALUES (rec.food);
+            SELECT id INTO v_food_id FROM ai_data.Food WHERE Label = rec.food;
+        END IF;
+
+        -- Insert relevant elements
+        IF rec."Protein" IS NOT NULL THEN
+            SELECT id INTO v_element_id FROM ai_data.Element WHERE label = 'Protein';
+            INSERT INTO ai_data.Possess (food_id, element_id, quantity)
+            VALUES (v_food_id, v_element_id, rec."Protein")
+            ON CONFLICT DO NOTHING;
+        END IF;
+
+        IF rec."Fiber" IS NOT NULL THEN
+            SELECT id INTO v_element_id FROM ai_data.Element WHERE label = 'Fiber';
+            INSERT INTO ai_data.Possess (food_id, element_id, quantity)
+            VALUES (v_food_id, v_element_id, rec."Fiber")
+            ON CONFLICT DO NOTHING;
+        END IF;
+
+        IF rec."Carbohydrate" IS NOT NULL THEN
+            SELECT id INTO v_element_id FROM ai_data.Element WHERE label = 'Carbohydrate';
+            INSERT INTO ai_data.Possess (food_id, element_id, quantity)
+            VALUES (v_food_id, v_element_id, rec."Carbohydrate")
+            ON CONFLICT DO NOTHING;
+        END IF;
+
+        IF rec."Sodium" IS NOT NULL THEN
+            SELECT id INTO v_element_id FROM ai_data.Element WHERE label = 'Sodium';
+            INSERT INTO ai_data.Possess (food_id, element_id, quantity)
+            VALUES (v_food_id, v_element_id, rec."Sodium")
+            ON CONFLICT DO NOTHING;
+        END IF;
+
+        IF rec."Fat" IS NOT NULL THEN
+            SELECT id INTO v_element_id FROM ai_data.Element WHERE label = 'Fat';
+            INSERT INTO ai_data.Possess (food_id, element_id, quantity)
+            VALUES (v_food_id, v_element_id, rec."Fat")
+            ON CONFLICT DO NOTHING;
+        END IF;
+
+        IF rec."Calories" IS NOT NULL THEN
+            SELECT id INTO v_element_id FROM ai_data.Element WHERE label = 'Calories';
+            INSERT INTO ai_data.Possess (food_id, element_id, quantity)
+            VALUES (v_food_id, v_element_id, rec."Calories")
+            ON CONFLICT DO NOTHING;
+        END IF;
+
+        IF rec."Sugars" IS NOT NULL THEN
+            SELECT id INTO v_element_id FROM ai_data.Element WHERE label = 'Sugars';
+            INSERT INTO ai_data.Possess (food_id, element_id, quantity)
+            VALUES (v_food_id, v_element_id, rec."Sugars")
+            ON CONFLICT DO NOTHING;
+        END IF;
+    END LOOP;
+END $$;

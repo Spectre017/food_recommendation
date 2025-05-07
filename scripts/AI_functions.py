@@ -210,6 +210,13 @@ def get_item_list_from_bdd(cursor, limit=1000):
   # 2. Pivot to make one row per food item, columns per element
   pivot_df = df.pivot(index=['food_id', 'food_item'], columns='element', values='element_quantity').reset_index()
 
+  pivot_df = pivot_df.fillna(0)
+
+  nutrient_columns = [col for col in pivot_df.columns if col not in ['food_id', 'food_item', 'Calories']]
+  nutrients_to_normalize = [col for col in nutrient_columns if col not in ['Sodium', 'Sugars']]
+  pivot_df[nutrients_to_normalize] = pivot_df[nutrients_to_normalize].div(pivot_df['Calories'], axis=0) * 100
+
+
   return pivot_df
 
 
@@ -233,40 +240,81 @@ def get_item_list_from_bdd(cursor, limit=1000):
 
 # AI FUNCTION SECTION
 
-def calculate_cosine_similarity(list1,list2):
+def calculate_cosine_similarity(list1, list2, weight_dict={
+    0: 3,  # Give more weight to Calories
+    1: 2,  # More weight to Sodium
+    2: 2,  # More weight to Sugars
+    # etc.
+}
+):
+    product = 0
+    tot1 = 0
+    tot2 = 0
 
-  product = 0
-  for i in range(len(list1)):
-     product = product + (list1[i]*list2[i])
-  
-  tot1=0
-  tot2=0
+    for i in range(len(list1)):
+        weight = weight_dict.get(i, 1)  # Default weight is 1, but you can add a dict for key nutrients
+        product += (list1[i] * list2[i]) * weight
 
-  for y in range(len(list2)):
-     
-     tot1 = tot1 + list2[y]**2 
-     tot2 = tot2 + list1[y]**2
-    
+    for y in range(len(list2)):
+        weight = weight_dict.get(y, 1)
+        tot1 += (list1[y]**2) * weight
+        tot2 += (list2[y]**2) * weight
 
-  return product/(sqrt(tot1)*sqrt(tot2))
+    return product / (sqrt(tot1) * sqrt(tot2))
+
+
+
+def calculate_quantity_error(actual, required, over_penalty=3.0, hard_limit=1.5):
+    total_required = sum(required)
+    if total_required == 0:
+        return 0.0  # Avoid divide-by-zero
+
+    total_error = 0.0
+
+    for a, r in zip(actual, required):
+        if a <= r:
+            # Under target: normal penalty
+            total_error += abs(a - r)
+        else:
+            # Over target: penalize heavily if above a "hard limit"
+            if a > r * 1.25:  # 125% of recommended
+                total_error += (a - r) * 5.0  # Stronger penalty for severe excess
+            else:
+                total_error += abs(a - r) * over_penalty  # Normal penalty for slight overnutrition
+
+    # Normalize error based on required sums
+    return min(total_error / total_required, 1.0)  # Clamp the error to [0, 1] scale
+
+
 
 # Gives a score of how much the item goes towards getting close to the wanted amount
-def coef_calculation(current_amount,item_amount,required_amount):
+def coef_calculation(current_amount, item_amount, required_amount):
+    combine_amount = [x + y for x, y in zip(current_amount, item_amount)]
 
-  combine_amount = [x + y for x, y in zip(current_amount, item_amount)]
+    # Cosine similarity to the goal AFTER adding item
+    cosine_score = calculate_cosine_similarity(combine_amount, required_amount)
 
-  print("combine_amount", combine_amount)
-  print("item_amount", item_amount)
-  print("current_amount", current_amount)
-  print("required_amount", required_amount)
+    # Normalize the error for each nutrient (penalizing excess sodium, sugar)
+    normalized_errors = []
+    for actual, required in zip(combine_amount, required_amount):
+        if actual > required * 1.5:  # If above 1.5x the required amount (overconsumption penalty)
+            normalized_errors.append((actual - required) * 2)  # Stronger penalty
+        else:
+            normalized_errors.append(abs(actual - required))  # Normal error for undernutrition or slight over
+    normalized_error = sum(normalized_errors) / len(required_amount)
 
-  first_coefficiant = calculate_cosine_similarity(combine_amount,required_amount)
-  second_coefficient = calculate_cosine_similarity(current_amount,required_amount)
+    # Quantity match score: 1 - normalized error (don't penalize too heavily)
+    quantity_score = max(0, 1 - normalized_error)  
+
+    # Final combined score (harsher on quantity, i.e., overnutrition)
+    final_score = cosine_score * 0.5 + quantity_score * 0.8  # Heavy emphasis on quantity match
+
+    match_percentage = final_score * 100  # Convert to percentage for easier interpretation
+    return match_percentage
 
 
-  #print(first_coefficiant,second_coefficient)
 
-  return first_coefficiant - second_coefficient
+
 
 
 # Analyses an item's nutritional value using AI compared to the meal and other items, returns a score
@@ -277,10 +325,18 @@ def analyse_item(item,meal,requirements):
     meal_values = meal.calculate_total_intake()
 
     sorted_keys = sorted(requirements.element_dictionnary.keys())
-
-
+    for key in sorted_keys:
+        if key not in item_values:
+            item_values[key] = 0.0
+        if key not in meal_values:
+            meal_values[key] = 0.0
     item_values = item_values[sorted_keys].values.tolist()
     meal_values = meal_values[sorted_keys].values.tolist()
+
+    for key in ["Calories", "Saturated Fat", "Sodium"]:
+        if key in item and key in meal_values:
+            if meal_values[key] + item[key] > requirements.element_dictionnary[key] * 1.25:
+                return 0  # Too much
 
 
     requirement_values = [requirements.element_dictionnary[key] for key in sorted_keys]
@@ -291,7 +347,7 @@ def analyse_item(item,meal,requirements):
     if coef<0:
        return "Negative score"
     else :
-       return coef*100
+       return coef
 
 
 # Main AI Function
@@ -317,11 +373,16 @@ def main():
   item_list = get_item_list_from_bdd(cursor)
   print(item_list)
   new_meal = meal(1, item_list.columns)
-  new_meal.add_item(item_list.loc[25])
+
+
+  #item_list.loc[len(item_list)] = [552,"Super Food", 1000, 33.33, 12.5, 27.3, 1, 12.5]
+  #item_list.loc[len(item_list)] = [553,"Nutritional Heaven", 10, 10.33, 12.5, 27.3, 1, 6.5]
+
+  new_meal.add_item(item_list.loc[229])
   final_list = analyse_items(new_meal,item_list,requirement)
   final_list["results"] = pd.to_numeric(final_list["results"], errors="coerce")
 
   print(final_list.sort_values(by="results"))
-
+  
   print(requirement.element_dictionnary)
 main()
