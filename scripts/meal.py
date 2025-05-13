@@ -12,7 +12,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
-# A list of food item in the meal
+# A list of food items with their nutrients in the meal
 class meal:
   def __init__(self, id, item_list_columns):
     self.id = id

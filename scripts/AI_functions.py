@@ -1,4 +1,3 @@
-
 import os
 from dotenv import load_dotenv, dotenv_values 
 import psycopg2
@@ -14,57 +13,12 @@ import requirements as req
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-     
-
-# An item associated with a food together with all it's nutrient value in a dictionnary
-"""
-
-class food_item:
-  def __init__(self, name, id, element_dictionnary):
-    self.id = id
-    self.name = name
-    self.element_dictionnary = element_dictionnary
-
-"""
-
-
-
-
-
-
-
-
-
-
-
-
-# REQUIREMENTS RELATED FUNCTION SECTION
-
-
-# FOOD ITEM CLASS RELATED FUNCTION SECTION
-
-
-
-
-# Create an item object from a database information
-# def create_food_item(item):
-   
-# Transforms a list of database item into food item class objects
-# def transform_food_item_list(cursor, limit=1000):
-   
-
-
-
-
-
-
-
 
 
 
 # AI FUNCTION SECTION
 
-# 1. Weighted cosine similarity by nutrient name (unchanged)
+# Calculate the similarity between two items' vectors and their nutrients to keep balance
 def calculate_cosine_similarity(list1, list2, weights):
     product = 0.0
     tot1 = 0.0
@@ -80,7 +34,7 @@ def calculate_cosine_similarity(list1, list2, weights):
     return product / (sqrt(tot1) * sqrt(tot2))
 
 
-# 2. Sharpened quantity-error with stronger excess penalties (unchanged)
+# Calculate the difference between an item's nutrient and it's requirements
 def calculate_quantity_error(actual, required, slight_penalty=3.0, severe_penalty=5.0):
     total_required = sum(required)
     if total_required == 0:
@@ -99,7 +53,7 @@ def calculate_quantity_error(actual, required, slight_penalty=3.0, severe_penalt
     return min(total_error / total_required, 1.0)
 
 
-# 3. Combined score re-scaled to 0–100, with bonuses & penalties (unchanged)
+# Calculate the score of an item in relation to current meal
 def coef_calculation(current_amount, item_amount, required_amount, nutrient_names):
     combine = [c + i for c, i in zip(current_amount, item_amount)]
 
@@ -138,7 +92,7 @@ def coef_calculation(current_amount, item_amount, required_amount, nutrient_name
     return max(0, min(100, final))
 
 
-# 4. analyse_item with safe lookups and immediate zero-out
+# Analyse an item to know it's nutritional value
 def analyse_item(item, meal, requirements):
     # build raw lookup dicts
     keys     = sorted(requirements.element_dictionnary.keys())
@@ -161,7 +115,7 @@ def analyse_item(item, meal, requirements):
     return coef_calculation(meal_vec, item_vec, req_vec, keys)
 
 
-# Main AI Function
+# Analyses a list of items
 def analyse_items(meal,item_list,requirements):
   item_list_complete = item_list.copy()
   item_list_complete["results"] = "None"

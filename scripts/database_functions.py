@@ -8,7 +8,7 @@ import pandas as pd
 import re
 from math import sqrt
 
-
+# Creates a connection with the database
 def create_bdd_connexion(retries=5, delay=5):
       # loading variables from .env file
     load_dotenv() 
@@ -43,14 +43,6 @@ def create_bdd_cursor(connection):
     cursor.execute("SET search_path TO ai_data;")
 
     return cursor
-
-
-
-
-
-
-
-# FUNCTION TO GET USER DATA
 
 #Gets all user-related info important for requirements(Sex, Age, Calories, Height, Weight) before being used to create them
 def get_user_info(user_id,cursor):
