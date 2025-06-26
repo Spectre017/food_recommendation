@@ -1,0 +1,13 @@
+Automatic constructor of the API doesn't work, use this:
+
+There are still some bugs relating to installation so do note that, in order to launch it you need to launch the API separatly with
+python -m fastapi dev api.py
+And the database with:
+docker-compose up --build db
+
+The AI has some greed problem and has trouble filling in values, although it is also a problem with a lack of food items,
+expending the database would be beneficial in the future.
+
+The security of the database is minimal.
+
+But appart from that, take the project in any direction you want!
