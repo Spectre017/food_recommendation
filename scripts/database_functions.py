@@ -50,7 +50,7 @@ def get_user_info(user_id,cursor):
         SELECT Age, Sex, Weight, Height, Desired_Intake
         FROM Users 
         WHERE id=%s;
-  """, user_id)
+  """, str(user_id))
   results = cursor.fetchall()
   results = results[0]
   user_info = {}
@@ -75,28 +75,53 @@ def get_requirement_list_from_bdd(cursor):
 
 # Gets a certain amount of items from the database together with their nutrients and creates the food item list
 def get_item_list_from_bdd(cursor, limit=1000):
-  cursor.execute("""
-        SELECT food.id,food.label,element.id, element.label, quantity
+    cursor.execute("""
+        SELECT food.id, food.label, element.id, element.label, quantity
         FROM food 
         INNER JOIN possess ON food.id = possess.food_id
         INNER JOIN element ON possess.element_id = element.id
-        WHERE element.label!='Carbohydrate'; 
-  """) #To change for Carbohydrate
-  results = cursor.fetchall()
+        WHERE element.label != 'Carbohydrate'; 
+    """)  # To change for Carbohydrate if needed
+    results = cursor.fetchall()
+
+    print(results)
+    print("hzdnzeijkfhzekfhezniu")
+
+    # 1. Create the initial DataFrame
+    df = pd.DataFrame(results, columns=['food_id', 'food_item', 'element_id', 'element', 'element_quantity'])
+
+    # 2. Pivot to make one row per food item, columns per element
+    pivot_df = df.pivot(index=['food_id', 'food_item'], columns='element', values='element_quantity').reset_index()
+
+    # 3. Replace missing values with 0 (optional — can also leave them as NaN)
+    pivot_df = pivot_df.fillna(0)
+
+    # 4. Return the DataFrame without normalizing anything
+    return pivot_df
 
 
-  # 1. Create the initial DataFrame
-  df = pd.DataFrame(results, columns=['food_id', 'food_item', 'element_id', 'element', 'element_quantity'])
+def fetch_food(conn, food_id):
+    query = """
+        SELECT fim.id, fim.Label AS food_item, e.label AS nutrient, p.quantity
+        FROM Food fim
+        JOIN Possess p ON fim.id = p.food_id
+        JOIN Element e ON p.element_id = e.id
+        WHERE fim.id = %s;
+    """
+    df = pd.read_sql(query, conn, params=(food_id,))
 
-  # 2. Pivot to make one row per food item, columns per element
-  pivot_df = df.pivot(index=['food_id', 'food_item'], columns='element', values='element_quantity').reset_index()
+    # Keep 'food_item' during pivot by separating it out
+    food_label = df[['id', 'food_item']].drop_duplicates()
+    df_pivoted = df.pivot(index='id', columns='nutrient', values='quantity').reset_index()
 
-  pivot_df = pivot_df.fillna(0)
+    # Merge back food name
+    result = pd.merge(df_pivoted, food_label, on='id', how='left')
 
-  nutrient_columns = [col for col in pivot_df.columns if col not in ['food_id', 'food_item', 'Calories']]
-  nutrients_to_normalize = [col for col in nutrient_columns if col not in ['Sodium', 'Sugars']]
-  pivot_df[nutrients_to_normalize] = pivot_df[nutrients_to_normalize].div(pivot_df['Calories'], axis=0) * 100
+    # Optional: move 'food_item' to first column
+    cols = ['id', 'food_item'] + [col for col in result.columns if col not in ['id', 'food_item']]
+    result = result[cols]
 
 
-  return pivot_df
+    return result
+
 

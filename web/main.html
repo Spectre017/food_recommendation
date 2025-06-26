@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Smart Food Picker</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #00aee3;
+      color: #fff;
+    }
+
+    #mealSummary {
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.15);
+      font-size: 17px;
+      font-weight: 600;
+      text-align: center;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+    }
+
+    .container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding-top: 60px;
+      gap: 20px;
+    }
+
+    .divider {
+      width: 5px;
+      height: 80px;
+      background-color: black;
+      border-radius: 10px;
+    }
+
+    .food-slot {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      max-width: 500px;
+      justify-content: center;
+    }
+
+    .food-item {
+      position: relative;
+      background: #fff;
+      color: #333;
+      padding: 12px 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .food-item:hover {
+      transform: scale(1.03);
+    }
+
+    .delete-btn {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      background-color: #e63946;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .add-btn {
+      background-color: #fff;
+      color: #00aee3;
+      border: none;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      font-size: 30px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      transition: 0.2s ease;
+    }
+
+    .add-btn:hover {
+      background-color: #f0f0f0;
+    }
+
+    /* MODAL STYLES */
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+
+    .modal-content {
+      background: #fefefe;
+      color: #333;
+      width: 420px;
+      max-width: 90%;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .modal-header button {
+      background: transparent;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      margin-bottom: 15px;
+      font-size: 16px;
+    }
+
+    .nutrient-bars {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .nutrient-bar {
+      background: #eee;
+      height: 10px;
+      width: 100px;
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .nutrient-fill {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.4s ease;
+    }
+
+
+    .food-option {
+      background: white;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .food-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .food-name {
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .select-btn {
+      background: #00aee3;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .select-btn:hover {
+      background: #007bb8;
+    }
+
+    .nutrients {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #444;
+      line-height: 1.5;
+    }
+
+    .score-bar {
+      height: 12px;
+      border-radius: 6px;
+      margin-top: 8px;
+      background-color: #eee;
+      overflow: hidden;
+    }
+
+    .score-fill {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.3s ease;
+    }
+  </style>
+</head>
+<body>
+  <div id="mealSummary"></div>
+
+  <div class="container">
+    <div class="divider"></div>
+    <div class="food-slot" id="foodSlot"></div>
+    <button class="add-btn" onclick="openModal()">+</button>
+    <div class="divider"></div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal" id="foodModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <strong>Select Food</strong>
+        <button onclick="closeModal()">✖</button>
+      </div>
+      <input type="text" class="search-input" placeholder="Search..." oninput="filterFoods(this.value)">
+      <div id="foodList">Loading...</div>
+    </div>
+  </div>
+
+  <script>
+    let foodData = [];
+    let mealId = null;
+
+    async function openModal() {
+      document.getElementById('foodModal').style.display = 'flex';
+      await loadMealAndItems();
+    }
+
+    function closeModal() {
+      document.getElementById('foodModal').style.display = 'none';
+    }
+
+    async function loadMealAndItems() {
+      if (!mealId) {
+        const mealResp = await fetch('http://localhost:8000/create_meal/');
+        const mealData = await mealResp.json();
+        mealId = mealData.meal_id || 1;
+      }
+
+      const resp = await fetch(`http://localhost:8000/analyse_items/?meal_id=${mealId}`);
+      foodData = await resp.json();
+      renderFoodOptions(foodData);
+      await updateMealSummary();
+    }
+    function renderFoodOptions(list) {
+      const foodList = document.getElementById('foodList');
+      foodList.innerHTML = '';
+
+      list.forEach(food => {
+        let score = 0;
+
+        try {
+          const raw = food.results;
+
+          if (typeof raw === 'number') {
+            score = raw;
+          } else if (typeof raw === 'string') {
+            const parsed = parseFloat(raw);
+            if (!isNaN(parsed)) {
+              score = parsed;
+            } else {
+              const labelToScore = {
+                "Great": 90,
+                "Good": 70,
+                "Moderate": 50,
+                "Bad": 30
+              };
+              score = labelToScore[raw.trim()] ?? 0;
+            }
+          } else if (typeof raw === 'object' && raw !== null && 'score' in raw) {
+            score = parseFloat(raw.score) || 0;
+          }
+        } catch (e) {
+          console.warn("Failed to parse score for food:", food.food_item, food.results);
+        }
+
+        const barColor =
+          score >= 70 ? '#4CAF50' :
+          score >= 40 ? '#FFC107' :
+          '#F44336';
+
+
+        const div = document.createElement('div');
+        div.className = 'food-option';
+        div.innerHTML = `
+          <div class="food-header">
+            <div class="food-name">${food.food_item || 'Unnamed'}</div>
+            <button class="select-btn" onclick="selectFood('${food.food_item}', ${food.food_id})">Add</button>
+          </div>
+          <div class="nutrients">
+            Calories: ${food.Calories ?? 'N/A'} kcal<br>
+            Fat: ${food.Fat ?? 'N/A'} g<br>
+            Fiber: ${food.Fiber ?? 'N/A'} g<br>
+            Protein: ${food.Protein ?? 'N/A'} g<br>
+            Sodium: ${food.Sodium ?? 'N/A'} mg<br>
+            Sugars: ${food.Sugars ?? 'N/A'} g<br>
+            Score: ${score}/100
+            <div class="score-bar">
+              <div class="score-fill" style="width: ${score}%; background-color: ${barColor};"></div>
+            </div>
+          </div>
+        `;
+        foodList.appendChild(div);
+      });
+    }
+
+    function filterFoods(query) {
+      const filtered = foodData.filter(f =>
+        f.food_item?.toLowerCase().includes(query.toLowerCase())
+      );
+      renderFoodOptions(filtered);
+    }
+  async function selectFood(foodName, foodId) {
+    try {
+      const res = await fetch(`http://localhost:8000/add_item_to_meal/?meal_id=${mealId}&item_id=${foodId}`);
+      if (!res.ok) throw new Error("Failed to add item");
+
+      // Visually add the food
+      const slot = document.getElementById('foodSlot');
+      const item = document.createElement('div');
+      item.className = 'food-item';
+      item.setAttribute('data-id', foodId);
+      item.textContent = foodName;
+
+      const btn = document.createElement('button');
+      btn.className = 'delete-btn';
+      btn.innerText = '✖';
+      btn.onclick = () => removeFood(item, foodId);
+
+      item.appendChild(btn);
+      slot.appendChild(item);
+
+      closeModal();
+
+      // ✅ Force a fresh re-fetch of foodData to make sure new scores are correct
+      const resp = await fetch(`http://localhost:8000/analyse_items/?meal_id=${mealId}`);
+      foodData = await resp.json(); // update global data with fresh analyzed items
+
+      updateMealSummary();         // updates nutrient totals
+      renderFoodOptions(foodData); // re-renders selection list with fresh scores
+
+    } catch (err) {
+      alert('Error adding food: ' + err.message);
+      console.error(err);
+    }
+  }
+
+  function removeFood(domElement, foodId) {
+      fetch(`http://localhost:8000/remove_item_from_meal/?meal_id=${mealId}&item_id=${foodId}`)
+        .then(res => {
+          if (!res.ok) throw new Error("Failed to remove item");
+          domElement.remove();
+        })
+        .catch(err => {
+          alert('Error removing food: ' + err.message);
+          console.error(err);
+        });
+    }
+    async function updateMealSummary() {
+      const itemsResp = await fetch(`http://localhost:8000/analyse_items/?meal_id=${mealId}`);
+      const items = await itemsResp.json();
+
+      const reqResp = await fetch(`http://localhost:8000/get_processed_requirements/?user_id=1`);
+      const requirements = await reqResp.json();
+
+      const mealItemIds = new Set();
+      document.querySelectorAll('#foodSlot .food-item').forEach(el => {
+        const id = el.getAttribute('data-id');
+        if (id) mealItemIds.add(Number(id));
+      });
+
+      const total = {
+        Calories: 0,
+        Protein: 0,
+        Fat: 0,
+        Sodium: 0,
+        Sugars: 0,
+        Fiber: 0
+      };
+
+      items.forEach(food => {
+        if (!mealItemIds.has(food.food_id)) return;
+        total.Calories += parseFloat(food.Calories || 0);
+        total.Protein += parseFloat(food.Protein || 0);
+        total.Fat += parseFloat(food.Fat || 0);
+        total.Sodium += parseFloat(food.Sodium || 0);
+        total.Sugars += parseFloat(food.Sugars || 0);
+        total.Fiber += parseFloat(food.Fiber || 0);
+      });
+
+      const nutrients = ["Calories", "Protein", "Fat", "Fiber", "Sugars", "Sodium"];
+      const summaryDiv = document.getElementById('mealSummary');
+      summaryDiv.innerHTML = nutrients.map(nutrient => {
+        const totalVal = total[nutrient];
+        const reqVal = requirements[nutrient] || 1;
+        const unit = nutrient === "Calories" ? "kcal" : (nutrient === "Sodium" ? "mg" : "g");
+        const percent = Math.min((totalVal / reqVal) * 100, 200); // max cap for bar
+        let color = "#4CAF50"; // green
+        if (percent > 120) color = "#F44336"; // red
+        else if (percent > 100) color = "#FFC107"; // yellow
+
+        return `
+          <div>
+            ${nutrient}: ${totalVal.toFixed(1)} / ${reqVal.toFixed(1)} ${unit}
+            <div class="nutrient-bar">
+              <div class="nutrient-fill" style="width: ${percent}%; background: ${color};"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+  </script>
+</body>
+</html>

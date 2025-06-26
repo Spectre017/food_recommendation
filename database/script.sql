@@ -18,6 +18,21 @@ CREATE TABLE Food (
     Label VARCHAR(100)
 );
 
+-- Table for Meal
+CREATE TABLE FoodInMeal (
+    food_id INT,
+    id_meal INT,
+    id_quantity INT,
+    PRIMARY KEY (food_id,id_meal,id_quantity)
+);
+
+-- Table for Meal
+CREATE TABLE Meal (
+    id SERIAL PRIMARY KEY,
+    id_user INT,
+    FOREIGN KEY (id_user) REFERENCES Users(id)
+);
+
 -- Table to represent User's liked Food
 CREATE TABLE UserLikesFood (
     user_id INT,
@@ -101,8 +116,8 @@ VALUES (7,0.05,'% of calories, /4');
 
 DROP TABLE IF EXISTS ai_data.NutritionStaging;
 CREATE TABLE ai_data.NutritionStaging (
-    id SERIAL,  -- ← optional row ID
-    unnamed_0 INT,         -- ← CSV first column (probably an index)
+    id SERIAL,  
+    unnamed_0 INT,      
     food TEXT,
     caloric_value FLOAT,
     fat FLOAT,
@@ -153,7 +168,7 @@ DO $$
 DECLARE
     v_food_id INT;
     v_element_id INT;
-    rec RECORD;  -- ✅ This is the missing piece
+    rec RECORD;  
 BEGIN
     FOR rec IN
         SELECT

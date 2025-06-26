@@ -1,4 +1,15 @@
 services:
+  etl:
+    build:
+        context: .
+        dockerfile: dockerfile.etl
+    volumes:
+        - ./data:/app/data
+      # Run ETL once; do not restart automatically.
+    restart: "no"
+      # Optionally, you might want to run this service manually
+      # (e.g. via `docker-compose run etl`).
+
   db:
     image: postgres:13
     environment:
@@ -13,6 +24,20 @@ services:
       - ./populate:/docker-entrypoint-initdb.d/populate
     ports:
       - "5432:5432"
+
+  api:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.api
+    depends_on:
+      - db
+    environment:
+      DATABASE_NAME: ${DATABASE_NAME}
+      DB_USERNAME: ${DB_USERNAME}
+      PASSWORD: ${PASSWORD}
+    ports:
+      - "8000:8000"
+
 
 volumes:
   db_data:
